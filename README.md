@@ -1,254 +1,144 @@
-# 🌾 Agricultural Government Schemes RAG Chatbot
+﻿# Agricultural Schemes RAG Assistant
 
-A beginner-friendly **Retrieval-Augmented Generation (RAG)** application for asking questions about agricultural government schemes using your own PDF documents.
+A local chatbot for exploring Indian agricultural government scheme PDFs. Upload a text-based PDF, ask a question, and review the retrieved excerpts and page references alongside the answer.
 
-**Frontend:** Streamlit + custom CSS  
-**Backend:** Python + FastAPI + LangChain  
-**Embeddings:** Hugging Face `sentence-transformers/all-MiniLM-L6-v2` (local CPU)  
-**Vector database:** FAISS (saved to disk)  
-**Answer generation:** OpenAI `ChatOpenAI` (requires API key)  
-**Chat experience:** Sidebar PDF upload, conversational interface, streamed answers and PDF source references.
+Answers are generated from uploaded documents, not a live government database. Verify eligibility, benefits, deadlines, and other important details against current official sources.
 
-> **Important:** Answers are based on the uploaded PDFs, not a live government schemes database. Always verify scheme eligibility, dates and benefits with official government sources before making decisions.
+## Features
 
-## 1. Project folder structure
+- Upload and index multiple PDFs in a shared local knowledge base.
+- Ask questions through a Streamlit chat interface and receive streamed answers.
+- Inspect retrieved PDF filenames, page numbers, and excerpts.
+- Generate embeddings locally with Hugging Face and store them in FAISS.
+- Use OpenAI to generate answers from the retrieved excerpts, with a prompt requesting the language of the question where possible.
+
+## Technology
+
+| Component | Technology |
+| --- | --- |
+| Frontend | Streamlit, custom CSS, Requests |
+| API | FastAPI, Uvicorn |
+| PDF processing and retrieval | LangChain, PyPDF, FAISS |
+| Embeddings | `sentence-transformers/all-MiniLM-L6-v2` on CPU |
+| Answer generation | OpenAI via LangChain (`gpt-4o-mini` by default) |
+
+## Project structure
 
 ```text
-buildathon/
-└── agri-schemes-rag/
-    ├── frontend/
-    │   ├── app.py                    # Streamlit chatbot and sidebar upload
-    │   ├── style.css                 # Custom colorful UI styles
-    │   └── requirements.txt         # Streamlit and requests
-    ├── backend/
-    │   ├── main.py                   # FastAPI + LangChain RAG pipelines
-    │   ├── requirements.txt         # Base backend dependencies
-    │   ├── requirements-additions.txt # Hugging Face dependencies
-    │   ├── .env.example              # Environment variable template
-    │   ├── .env                      # Your local API key (create this; do not commit)
-    │   └── data/
-    │       ├── uploads/              # Saved uploaded PDFs
-    │       └── faiss_index/          # index.faiss and index.pkl
-    └── README.md
+agri-schemes-rag/
+├── backend/
+│   ├── main.py
+│   ├── requirements.txt
+│   └── data/
+│       ├── uploads/          # Uploaded PDFs
+│       └── faiss_index/      # Persisted FAISS index and metadata
+├── frontend/
+│   ├── app.py
+│   ├── style.css
+│   └── requirements.txt
+└── README.md
 ```
 
-The `requirements-additions.txt` file is included in the chatbot update ZIP. Copy the updated `frontend/app.py`, `frontend/style.css`, `backend/main.py`, and `backend/requirements-additions.txt` into the matching folders of your original project. Keep the original requirements files.
+## Prerequisites
 
-## 2. Prerequisites
+- Python 3.11 recommended.
+- An OpenAI API key with access to the configured chat model and API billing.
+- Internet access to install packages, download the embedding model on first use, and call OpenAI.
+- A text-based PDF of 150 MB or less. Scanned PDFs require OCR, which is not included.
 
-- Windows 10/11, PowerShell, VS Code or another editor
-- **Python 3.11** recommended for easier package compatibility (Python 3.14 can cause installation issues)
-- Internet access for installation, first Hugging Face model download, and OpenAI requests
-- OpenAI API key with API billing configured
-- Enough free disk space for Python dependencies, the embedding model, uploaded PDFs and FAISS indexes
+## Setup and run on Windows
 
-Check Python:
+The following commands assume PowerShell is open in the `agri-schemes-rag` folder. Use two terminals: one for the backend and one for the frontend.
 
-```powershell
-py -3.11 --version
-```
-
-If Python 3.11 is not installed, install it before proceeding. Commands below assume you extracted the project into a folder named `buildathon`.
-
-## 3. Backend setup (PowerShell terminal 1)
-
-Navigate to your project backend (adjust the path to your computer):
+### 1. Start the backend
 
 ```powershell
-cd buildathon\agri-schemes-rag\backend
+cd backend
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-pip install -r requirements.txt
-pip install -r requirements-additions.txt
-Copy-Item .env.example .env
+python -m pip install -r requirements.txt
 ```
 
-If PowerShell prevents activation, you can use `cmd.exe` with `.venv\Scripts\activate.bat`, or run `.venv\Scripts\python.exe` directly. Avoid changing system-wide execution policies unnecessarily.
-
-Edit `backend/.env`:
+Create `backend/.env` with your own credentials:
 
 ```dotenv
 OPENAI_API_KEY=your_openai_api_key_here
 CHAT_MODEL=gpt-4o-mini
 ```
 
-Do not put your real API key in source code or share your `.env` file.
-
-Start FastAPI:
+`CHAT_MODEL` is optional. Keep your API key private and do not commit `.env`.
 
 ```powershell
-uvicorn main:app --reload --port 8000
+python -m uvicorn main:app --reload --port 8000
 ```
 
-Open **http://127.0.0.1:8000/docs** for interactive Swagger API documentation.
+The API runs at `http://127.0.0.1:8000`; interactive API documentation is available at `http://127.0.0.1:8000/docs`.
 
-## 4. Frontend setup (PowerShell terminal 2)
+### 2. Start the frontend
 
-Open another terminal:
+In a second PowerShell terminal, from the project folder:
 
 ```powershell
-cd buildathon\agri-schemes-rag\frontend
+cd frontend
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-streamlit run app.py
+python -m pip install -r requirements.txt
+python -m streamlit run app.py
 ```
 
-Open **http://localhost:8501** in your browser.
-
-By default the frontend calls `http://127.0.0.1:8000`. To override the backend URL in PowerShell before launching Streamlit:
+Open `http://localhost:8501`. The frontend connects to `http://127.0.0.1:8000` by default. To use another backend URL, set it before starting Streamlit:
 
 ```powershell
-$env:BACKEND_URL="http://127.0.0.1:8000"
-streamlit run app.py
+$env:BACKEND_URL = "http://127.0.0.1:8000"
+python -m streamlit run app.py
 ```
 
-## 5. How to use the chatbot
+If PowerShell blocks virtual environment activation, use the environment's Python directly, for example `.\.venv\Scripts\python.exe -m pip install -r requirements.txt`, and use the same Python executable to start the service.
 
-1. Open the Streamlit page.
-2. In the **left sidebar**, select a government scheme PDF.
-3. Click **Upload & Index**. The backend saves the PDF, extracts its text, splits it into chunks, generates Hugging Face embeddings and writes them to FAISS.
-4. Wait for the success message showing the number of pages and chunks.
-5. Ask a question in the **chat input**, such as: `Who is eligible for this scheme?`
-6. Watch the answer appear progressively using `st.write_stream()`.
-7. Expand **PDF Sources** below the answer to inspect the supporting filename, page number and excerpt.
-8. Use **Clear chat** to reset the current Streamlit chat history (it does **not** delete PDFs or the FAISS index).
+## Use the assistant
 
-Example questions:
+1. Start both services and open the Streamlit page.
+2. Select a text-based government scheme PDF in the sidebar and click **Upload & Index**. The first upload may take longer while the embedding model downloads.
+3. Once the index is ready, ask a question such as “What are the eligibility criteria?” or “Which documents are required to apply?”
+4. Expand **PDF Sources** under the answer to check the retrieved pages and excerpts.
+5. Use **Clear chat** to clear the displayed conversation. This does not delete uploaded PDFs or the index.
 
-- What are the eligibility criteria for PM-KISAN according to my uploaded document?
-- What benefits does this scheme provide?
-- Which documents are needed to apply?
-- How does a farmer apply for this scheme?
-- Explain the scheme in Tamil.
 
-**Tanglish:** Sidebar-la PDF upload pannunga. Upload & Index click panna, PDF text chunks-ah split aagi Hugging Face embedding create aagum. FAISS-la save aagum. Apram chat-la question ketta relevant chunks retrieve panni ChatOpenAI answer stream pannum.
+## How it works
 
-## 6. Pipeline 1 — PDF ingestion
+1. The backend saves the PDF, extracts page text, and splits it into chunks of 900 characters with 150 characters of overlap.
+2. The local embedding model converts chunks into vectors. FAISS stores them in `backend/data/faiss_index/`; subsequent uploads are added to the same index.
+3. For each question, FAISS retrieves up to four similar chunks. The backend sends those excerpts and the question to the configured OpenAI chat model.
+4. The frontend streams the response and shows the retrieved sources. Sources are retrieval results and should be checked against the original PDF.
 
-```text
-Streamlit sidebar (PDF upload)
-        ↓ POST /upload
-FastAPI validates PDF (max 15 MB)
-        ↓
-Save PDF → backend/data/uploads/
-        ↓
-PyPDFLoader: extract page text
-        ↓
-RecursiveCharacterTextSplitter
-  chunk_size=900, chunk_overlap=150
-        ↓
-HuggingFaceEmbeddings
-  sentence-transformers/all-MiniLM-L6-v2
-  CPU; normalized 384-dimensional vectors
-        ↓
-FAISS.from_documents() or add_documents()
-        ↓
-Persist → backend/data/faiss_index/
-  index.faiss + index.pkl
-```
+Chat messages are retained in the Streamlit session for display, but prior turns are not sent to the backend. Follow-up questions should include the necessary context.
 
-The first use downloads the Hugging Face model. Later runs can reuse its local cache. Embedding creation does not require an OpenAI key.
+## API
 
-**Limitations:** This version extracts embedded PDF text; scanned/image-only PDFs need OCR (not included). Uploading the same document twice can create duplicate indexed chunks. The backend currently maintains a shared index across uploads, not separate user-specific knowledge bases.
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| GET | `/health` | Reports status, uploaded PDF count, and whether an index exists. |
+| POST | `/upload` | Uploads and indexes a PDF using multipart field `file`. |
+| POST | `/ask` | Accepts a JSON question and returns an answer and sources. |
+| POST | `/ask/stream` | Streams newline-delimited JSON source, token, completion, or error events. |
 
-## 7. Pipeline 2 — Question answering with streaming
-
-```text
-User types a question in st.chat_input()
-        ↓ POST /ask/stream
-FastAPI loads the existing FAISS index
-        ↓
-Hugging Face embeds the question
-        ↓
-FAISS similarity_search(question, k=4)
-        ↓
-Retrieve relevant PDF excerpts and source metadata
-        ↓
-LangChain prompt + ChatOpenAI (gpt-4o-mini by default)
-        ↓
-Model streams response chunks
-        ↓
-FastAPI StreamingResponse (NDJSON)
-        ↓
-Streamlit st.write_stream()
-        ↓
-Chat answer + expandable PDF Sources
-```
-
-The chatbot keeps conversation **display history** in Streamlit session state. The current backend sends only the **latest question and retrieved excerpts** to the model, so it does not yet support context-aware follow-up questions that depend on earlier turns.
-
-## 8. API endpoints
-
-| Method | Endpoint | Purpose |
-|---|---|---|
-| GET | `/health` | Backend status, number of stored PDFs, whether an index exists |
-| POST | `/upload` | Upload a PDF as multipart field `file`, save it, and index its text |
-| POST | `/ask` | Ask a question and receive a complete JSON answer with sources |
-| POST | `/ask/stream` | Ask a question and receive streamed newline-delimited JSON events |
-
-Example health check:
-
-```powershell
-Invoke-RestMethod http://127.0.0.1:8000/health
-```
-
-Example non-streaming question (after uploading a PDF):
+Questions must contain 3–2,000 characters. For example, after indexing a PDF:
 
 ```powershell
 $body = @{ question = "What are the eligibility criteria?" } | ConvertTo-Json
 Invoke-RestMethod -Uri http://127.0.0.1:8000/ask -Method Post -ContentType "application/json" -Body $body
 ```
 
-`/ask/stream` sends NDJSON events with types `sources`, `token`, `done`, or `error`. The Streamlit UI parses them and progressively renders `token` content.
+## Limitations and troubleshooting
 
-## 9. Switching from old OpenAI embeddings to Hugging Face
+- **Backend offline:** Start FastAPI and check `BACKEND_URL` and port 8000.
+- **Missing API key or answer failure:** Check `backend/.env`, model access, billing, and internet connectivity, then restart the backend after changing configuration.
+- **No extractable text:** Use a text-based PDF; image-only scans need OCR.
+- **Upload rejected:** Confirm the file is a valid PDF and no larger than 150 MB.
+- **Import errors:** Install the appropriate requirements file in each service's environment. Python 3.11 is recommended if package installation fails.
+- **Index compatibility:** Existing FAISS indexes must use the same embedding model and dimensions. To rebuild an incompatible index, stop the backend, remove the index files in `backend/data/faiss_index/`, restart it, and upload the PDFs again. Saved PDFs are not automatically re-indexed.
 
-**Very important:** If you created a FAISS index with OpenAI embeddings in the original project, it cannot be reused with the new 384-dimensional Hugging Face embeddings.
+The app uses a shared local index, has no authentication or document deletion interface, and may index duplicate uploads. FAISS metadata uses pickle: only load index files created by a trusted source. This is a learning MVP and needs additional security and access controls before public deployment.
 
-1. Stop the backend and frontend.
-2. Delete **only** `backend/data/faiss_index/index.faiss` and `backend/data/faiss_index/index.pkl` from your old index.
-3. Keep PDFs in `backend/data/uploads/` if you need them, but the current app does **not** automatically re-index files from that directory.
-4. Restart both applications and **upload the PDFs again from the sidebar**.
-
-**Security:** FAISS's saved metadata uses Python pickle. Load only index files generated by your own trusted application; never copy unknown `index.pkl` files into the index folder.
-
-## 10. Troubleshooting
-
-| Issue | What to check |
-|---|---|
-| `ModuleNotFoundError` | Activate the correct virtual environment and install both backend requirements files |
-| `uvicorn` not recognized | Run `python -m uvicorn main:app --reload --port 8000` from `backend/` |
-| Backend offline in sidebar | Confirm FastAPI is running on port 8000 and `BACKEND_URL` is correct |
-| `OPENAI_API_KEY is missing` | Create `backend/.env`, add a valid key and restart FastAPI |
-| Slow first upload | The Hugging Face model may be downloading or initializing on CPU |
-| FAISS dimension mismatch | Remove the old OpenAI-embedding index files and re-upload PDFs |
-| No text extracted from PDF | The PDF may be scanned; this version has no OCR |
-| Stream fails | Check FastAPI terminal errors, API key, internet and API billing |
-| Chat disabled | Backend must be online and at least one PDF must be indexed |
-| `zstandard`/wheel build error | Use a clean Python 3.11 environment rather than Python 3.14 |
-
-## 11. What costs money?
-
-- **Streamlit:** free when running locally.
-- **FastAPI / LangChain / FAISS:** open-source, running locally.
-- **Hugging Face embeddings:** local CPU inference; no embedding API charge, but uses RAM/CPU and downloads model files.
-- **ChatOpenAI:** OpenAI API calls are billed separately according to your account and chosen model.
-
-## 12. Current MVP limitations and next improvements
-
-This is a **local learning MVP**, not a production-ready government advisory service. The application currently lacks authentication, user-specific storage, duplicate document detection, automatic OCR, document deletion, robust rate limiting, and full conversation-aware retrieval. Do not expose the backend publicly without adding appropriate security controls.
-
-Good next steps:
-
-1. Add a document list and delete/re-index options.
-2. Add multilingual Tamil question/answer testing.
-3. Add OCR for scanned scheme PDFs.
-4. Add chat history-aware question rewriting.
-5. Add official government source URLs and document freshness checks.
-6. Add automated tests and deployment configuration.
-
----
-
-**Beginner milestone:** Upload one text-based agricultural scheme PDF, confirm the FAISS files are created, ask a question, watch the streamed answer, and verify the cited PDF page yourself.
+Local embeddings use CPU and disk space but do not incur an embedding API charge. OpenAI answer generation may incur API charges.

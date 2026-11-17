@@ -20,7 +20,7 @@ INDEX_DIR = BASE_DIR / 'data' / 'faiss_index'
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 INDEX_DIR.mkdir(parents=True, exist_ok=True)
 INDEX_FILE = INDEX_DIR / 'index.faiss'
-MAX_FILE_BYTES = 15 * 1024 * 1024
+MAX_FILE_BYTES = 150 * 1024 * 1024
 INDEX_LOCK = threading.RLock()
 
 app = FastAPI(title='Agricultural Government Schemes RAG API', version='1.0.0')
@@ -64,7 +64,7 @@ def upload_pdf(file: UploadFile = File(...)):
             while chunk := file.file.read(1024 * 1024):
                 size += len(chunk)
                 if size > MAX_FILE_BYTES:
-                    raise HTTPException(413, 'PDF must be 15 MB or smaller.')
+                    raise HTTPException(413, 'PDF must be 150 MB or smaller.')
                 dest.write(chunk)
         if size < 5 or saved_path.read_bytes()[:5] != b'%PDF-':
             raise HTTPException(400, 'This file does not appear to be a valid PDF.')
